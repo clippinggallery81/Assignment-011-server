@@ -1,0 +1,93 @@
+const express = require('express');
+const cors = require('cors');
+const dns = require('dns');
+const { MongoClient, ServerApiVersion } = require('mongodb');
+require('dotenv').config();
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Force Google's DNS
+dns.setServers(['8.8.8.8', '8.8.4.4']);
+
+app.use(express.json());
+app.use(cors());
+
+const uri = `mongodb+srv://${process.env.DB_USERS}:${process.env.DB_PASS}@aslampracticefirstserve.ortqfo0.mongodb.net/?appName=AslamPracticeFirstServer`;
+
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+  connectTimeoutMS: 5000,
+  serverSelectionTimeoutMS: 5000,
+});
+
+let usersCollection;
+
+async function connectDB() {
+  try {
+    console.log('Connecting to MongoDB Atlas...');
+    await client.connect();
+    const db = client.db("assetverseDB");
+    usersCollection = db.collection("users");
+    
+    // Send a ping to confirm a successful connection
+    await client.db("admin").command({ ping: 1 });
+    console.log("✅ Connected to MongoDB!");
+    return true;
+  } catch (error) {
+    console.error('❌ MongoDB connection error:', error.message);
+    console.error('⚠️  Continuing without database...');
+    // Continue anyway for testing
+    return false;
+  }
+}
+
+// Routes
+app.get('/', (req, res) => {
+  console.log('GET /');
+  res.send('asset is running');
+});
+
+app.get('/users', async (req, res) => {
+  console.log('GET /users - Collection:', !!usersCollection);
+  try {
+    if (!usersCollection) {
+      return res.status(500).send({ error: 'Database not initialized' });
+    }
+    const users = await usersCollection.find().toArray();
+    res.send(users);
+  } catch (error) {
+    res.status(500).send({ error: error.message });
+  }
+});
+
+app.post('/users', async (req, res) => {
+  console.log('POST /users - Collection:', !!usersCollection, 'Body:', req.body);
+  try {
+    if (!usersCollection) {
+      return res.status(500).send({ error: 'Database not initialized' });
+    }
+    const user = req.body;
+    console.log('Inserting user:', user);
+    const result = await usersCollection.insertOne(user);
+    res.send(result);
+  } catch (error) {
+    console.error('Insert error:', error);
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Start server
+async function startServer() {
+  await connectDB();
+  
+  app.listen(port, () => {
+    console.log(`🚀 Server is running on port ${port}`);
+  });
+}
+
+startServer().catch(console.error);
